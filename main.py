@@ -99,7 +99,7 @@ class SecondaryBot(BotBase):
     def __init__(self):
         super().__init__(
             prefix=">>",
-            cogs=["channel"],
+            cogs=["cogs.channel"],
             bot_name="BOT2"
         )
         self.status_index = 0
