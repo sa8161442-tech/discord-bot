@@ -74,14 +74,14 @@ class MainBot(BotBase):
         super().__init__(
             prefix=PREFIX,
             cogs=[
-                "cogs.verify",
-                "cogs.admin",
-                "cogs.dm_syaem",
-                "cogs.hely",
-                "cogs.userinfo",
-                "cogs.bot_inspect",
-                "cogs.shop",
-                "cogs.vc"
+                "verify",
+                "admin",
+                "dm_syaem",
+                "hely",
+                "userinfo",
+                "bot_inspect",
+                "shop",
+                "vc"
             ],
             bot_name="BOT1"
         )
@@ -99,7 +99,7 @@ class SecondaryBot(BotBase):
     def __init__(self):
         super().__init__(
             prefix=">>",
-            cogs=["cogs.channel"],
+            cogs=["channel"],
             bot_name="BOT2"
         )
         self.status_index = 0
