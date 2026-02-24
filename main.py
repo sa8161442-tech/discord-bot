@@ -4,324 +4,221 @@ import os
 import sys
 import asyncio
 from datetime import datetime, timezone
+from typing import List
 
-# =========================
-# CONFIGURATION - BOT 1
-# =========================
 TOKEN = os.getenv("DISCORD_TOKEN")
-PREFIX = "!"
-OWNER_ID = 427563032080547840  # ใส่ไอดีของคุณ
-
-# =========================
-# CONFIGURATION - BOT 2
-# =========================
 TOKEN_2 = os.getenv("DISCORD_TOKEN_2")
+PREFIX = "!"
+OWNER_ID = 427563032080547840
 
-# =========================
-# INTENTS
-# =========================
-intents = discord.Intents.default()
-intents.message_content = True  # สำหรับ prefix commands
-intents.members = True  # สำหรับดูสมาชิก (สำคัญสำหรับ add_role)
-intents.guilds = True  # สำหรับดูเซิร์ฟเวอร์
-intents.presences = False  # ไม่จำเป็นต้องดู presence
+if not TOKEN:
+    raise ValueError("DISCORD_TOKEN environment variable is required")
 
 
-# =========================
-# TIME-BASED STATUS HELPER
-# =========================
+def create_intents() -> discord.Intents:
+    intents = discord.Intents.default()
+    intents.message_content = True
+    intents.members = True
+    intents.guilds = True
+    intents.presences = False
+    return intents
+
+
 def get_time_based_status() -> discord.Status:
-    """
-    คำนวณสถานะบอทตามเวลาปัจจุบัน
-
-    Returns:
-        discord.Status: สถานะที่เหมาะสมตามช่วงเวลา
-        - 06:00-11:59 → Online (เขียว)
-        - 12:00-18:59 → Idle (เหลือง)
-        - 19:00-05:59 → DND (แดง)
-    """
-    now = datetime.now()
-    current_hour = now.hour
-
-    if 6 <= current_hour < 12:
+    hour = datetime.now().hour
+    if 6 <= hour < 12:
         return discord.Status.online
-    elif 12 <= current_hour < 19:
+    elif 12 <= hour < 19:
         return discord.Status.idle
     else:
         return discord.Status.dnd
 
 
-# =========================
-# BOT 1 SETUP
-# =========================
-class MyBot(commands.Bot):
-    def __init__(self):
+class BotBase(commands.Bot):
+    def __init__(self, prefix: str, cogs: List[str], bot_name: str):
         super().__init__(
-            command_prefix=PREFIX,
-            intents=intents,
-            help_command=None,  # ปิด help command เดิม
-            owner_id=OWNER_ID,
-            case_insensitive=True,  # คำสั่งไม่สนใจตัวพิมพ์เล็ก-ใหญ่
-        )
-        self.start_time = datetime.now(timezone.utc)
-
-    async def setup_hook(self):
-        """เรียกทุกครั้งก่อนบอทจะเชื่อมต่อ"""
-        await self.load_cogs()
-
-    async def load_cogs(self):
-        """โหลด cogs ทั้งหมดจากโฟลเดอร์ cogs"""
-        cogs_to_load = [
-            "cogs.verify",
-            "cogs.admin",
-            "cogs.dm_syaem",
-            "cogs.hely",
-            "cogs.userinfo",
-            "cogs.bot_inspect",
-            "cogs.shop",
-            "cogs.vc",
-        ]
-
-        print("📦 [BOT1] กำลังโหลด Cogs...")
-        loaded = 0
-        failed = 0
-
-        for cog in cogs_to_load:
-            try:
-                await self.load_extension(cog)
-                print(f"  ✅ [BOT1] โหลด {cog} สำเร็จ")
-                loaded += 1
-            except Exception as e:
-                print(f"  ❌ [BOT1] โหลด {cog} ล้มเหลว: {e}")
-                failed += 1
-
-        print(f"\n📊 [BOT1] สรุป: โหลดสำเร็จ {loaded} / {len(cogs_to_load)} Cogs")
-        if failed > 0:
-            print(f"⚠️  [BOT1] ล้มเหลว {failed} Cogs")
-
-
-bot = MyBot()
-
-
-# =========================
-# BOT 2 SETUP
-# =========================
-class MyBot2(commands.Bot):
-    def __init__(self):
-        super().__init__(
-            command_prefix=">>",  # ใช้ prefix ที่ไม่ซ้ำ แต่ไม่ได้ใช้งานจริง
-            intents=intents,
+            command_prefix=prefix,
+            intents=create_intents(),
             help_command=None,
+            owner_id=OWNER_ID if prefix == PREFIX else None,
+            case_insensitive=True
         )
+        self.cogs_to_load = cogs
+        self.bot_name = bot_name
         self.start_time = datetime.now(timezone.utc)
 
     async def setup_hook(self):
-        """เรียกทุกครั้งก่อนบอทจะเชื่อมต่อ"""
-        await self.load_cogs()
+        await self._load_cogs()
 
-    async def load_cogs(self):
-        """โหลด cogs สำหรับบอท 2"""
-        cogs_to_load = [
-            "cogs.channel",
-
-        ]
-
-        print("📦 [BOT2] กำลังโหลด Cogs...")
+    async def _load_cogs(self):
+        print(f"📦 [{self.bot_name}] กำลังโหลด Cogs...")
         loaded = 0
         failed = 0
 
-        for cog in cogs_to_load:
+        for cog in self.cogs_to_load:
             try:
                 await self.load_extension(cog)
-                print(f"  ✅ [BOT2] โหลด {cog} สำเร็จ")
+                print(f"  ✅ [{self.bot_name}] โหลด {cog} สำเร็จ")
                 loaded += 1
             except Exception as e:
-                print(f"  ❌ [BOT2] โหลด {cog} ล้มเหลว: {e}")
+                print(f"  ❌ [{self.bot_name}] โหลด {cog} ล้มเหลว: {e}")
                 failed += 1
 
-        print(f"\n📊 [BOT2] สรุป: โหลดสำเร็จ {loaded} / {len(cogs_to_load)} Cogs")
+        print(f"📊 [{self.bot_name}] สรุป: {loaded}/{len(self.cogs_to_load)} Cogs")
         if failed > 0:
-            print(f"⚠️  [BOT2] ล้มเหลว {failed} Cogs")
+            print(f"⚠️  [{self.bot_name}] ล้มเหลว {failed} Cogs")
 
 
-bot2 = MyBot2()
+class MainBot(BotBase):
+    def __init__(self):
+        super().__init__(
+            prefix=PREFIX,
+            cogs=[
+                "cogs.verify",
+                "cogs.admin",
+                "cogs.dm_syaem",
+                "cogs.hely",
+                "cogs.userinfo",
+                "cogs.bot_inspect",
+                "cogs.shop",
+                "cogs.vc"
+            ],
+            bot_name="BOT1"
+        )
+        self.status_index = 0
+        self.status_activities = [
+            ("📖 /help - วิธีใช้คำสั่งทั้งหมด", discord.ActivityType.playing),
+            ("</> พัฒนาเพื่อการศึกษา", discord.ActivityType.watching),
+            ("🎶 Boulevard of Broken Dreams", discord.ActivityType.listening),
+            ("✅ ระบบยืนยันตัวตนอัตโนมัติ", discord.ActivityType.watching),
+            ("☢️ ดูแลโดยทีมงาน 24/7", discord.ActivityType.watching)
+        ]
 
-# =========================
-# STATUS LIST (BOT 1 ONLY)
-# =========================
-status_list = [
-    ("📖 /help - วิธีใช้คำสั่งทั้งหมด", discord.ActivityType.playing),
-    ("</> พัฒนาเพื่อการศึกษา", discord.ActivityType.watching),
-    ("🎶 Boulevard of Broken Dreams", discord.ActivityType.listening),
-    ("✅ ระบบยืนยันตัวตนอัตโนมัติ", discord.ActivityType.watching),
-    ("☢️ ดูแลโดยทีมงาน 24/7", discord.ActivityType.watching),
-    (f"💫 อยู่ใน {len(bot.guilds)} เซิร์ฟเวอร์", discord.ActivityType.watching),
-]
 
-current_status = 0
+class SecondaryBot(BotBase):
+    def __init__(self):
+        super().__init__(
+            prefix=">>",
+            cogs=["cogs.channel"],
+            bot_name="BOT2"
+        )
+        self.status_index = 0
+        self.status_activities = [
+            ("🌐 Monitoring Channels", discord.ActivityType.watching),
+            ("📡 Auto Management System", discord.ActivityType.watching),
+            ("⚙️ Channel Operations", discord.ActivityType.watching),
+            ("🔧 System Active", discord.ActivityType.watching),
+            ("💼 Background Worker", discord.ActivityType.watching)
+        ]
 
 
-# =========================
-# EVENTS - BOT 1
-# =========================
+bot = MainBot()
+bot2 = SecondaryBot()
+
+
 @bot.event
 async def on_ready():
-    """เมื่อบอทพร้อมใช้งาน"""
     print("\n" + "=" * 50)
     print(f"🤖 [BOT1] บอทออนไลน์แล้ว!")
     print(f"👤 ชื่อ: {bot.user}")
     print(f"🆔 ID: {bot.user.id}")
-    print(f"🌍 เซิร์ฟเวอร์: {len(bot.guilds)} เซิร์ฟ")
-    print(f"👥 สมาชิก: {sum(g.member_count for g in bot.guilds):,} คน")
     print(f"⏰ เริ่มต้นเมื่อ: {bot.start_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print("=" * 50 + "\n")
 
-    # Sync slash commands
     try:
         synced = await bot.tree.sync()
         print(f"✅ [BOT1] ซิงค์ Slash Commands สำเร็จ ({len(synced)} คำสั่ง)")
     except Exception as e:
         print(f"❌ [BOT1] ซิงค์ Slash Commands ล้มเหลว: {e}")
 
-    # เริ่ม status loop
     if not change_status.is_running():
         change_status.start()
-        print("✅ [BOT1] เริ่ม Status Rotation แล้ว")
+        print(f"✅ [BOT1] เริ่ม Status Rotation")
         print(f"⏰ [BOT1] Time-Based Status: {get_time_based_status()}\n")
 
 
 @bot.event
-async def on_guild_join(guild):
-    """เมื่อบอทเข้าเซิร์ฟใหม่"""
-    print(f"➕ [BOT1] เข้าเซิร์ฟใหม่: {guild.name} (ID: {guild.id}) | สมาชิก: {guild.member_count}")
-
-
-@bot.event
-async def on_guild_remove(guild):
-    """เมื่อบอทออกจากเซิร์ฟ"""
-    print(f"➖ [BOT1] ออกจากเซิร์ฟ: {guild.name} (ID: {guild.id})")
-
-
-@bot.event
 async def on_command_error(ctx, error):
-    """จัดการ error ของ prefix commands"""
     if isinstance(error, commands.CommandNotFound):
-        return  # ไม่แสดงอะไรถ้าไม่เจอคำสั่ง
-
+        return
     elif isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ คุณไม่มีสิทธิ์ใช้คำสั่งนี้")
-
     elif isinstance(error, commands.BotMissingPermissions):
         await ctx.send("❌ บอทไม่มีสิทธิ์ดำเนินการนี้")
-
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(f"❌ ขาดพารามิเตอร์: `{error.param.name}`")
-
     else:
         print(f"❌ [BOT1] Command Error: {type(error).__name__}: {error}")
 
 
 @bot.event
 async def on_error(event, *_args, **_kwargs):
-    """จัดการ error ทั่วไป"""
     print(f"❌ [BOT1] Error in {event}:")
     import traceback
     traceback.print_exc()
 
 
-# =========================
-# EVENTS - BOT 2
-# =========================
 @bot2.event
 async def on_ready():
-    """เมื่อบอท 2 พร้อมใช้งาน"""
     print("\n" + "=" * 50)
     print(f"🤖 [BOT2] บอทออนไลน์แล้ว!")
     print(f"👤 ชื่อ: {bot2.user}")
     print(f"🆔 ID: {bot2.user.id}")
-    print(f"🌍 เซิร์ฟเวอร์: {len(bot2.guilds)} เซิร์ฟ")
-    print(f"👥 สมาชิก: {sum(g.member_count for g in bot2.guilds):,} คน")
     print(f"⏰ เริ่มต้นเมื่อ: {bot2.start_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print("=" * 50 + "\n")
 
-    # Sync slash commands
     try:
         synced = await bot2.tree.sync()
-        print(f"✅ [BOT2] ซิงค์ Slash Commands สำเร็จ ({len(synced)} คำสั่ง)\n")
+        print(f"✅ [BOT2] ซิงค์ Slash Commands สำเร็จ ({len(synced)} คำสั่ง)")
     except Exception as e:
-        print(f"❌ [BOT2] ซิงค์ Slash Commands ล้มเหลว: {e}\n")
+        print(f"❌ [BOT2] ซิงค์ Slash Commands ล้มเหลว: {e}")
 
-
-@bot2.event
-async def on_guild_join(guild):
-    """เมื่อบอท 2 เข้าเซิร์ฟใหม่"""
-    print(f"➕ [BOT2] เข้าเซิร์ฟใหม่: {guild.name} (ID: {guild.id}) | สมาชิก: {guild.member_count}")
-
-
-@bot2.event
-async def on_guild_remove(guild):
-    """เมื่อบอท 2 ออกจากเซิร์ฟ"""
-    print(f"➖ [BOT2] ออกจากเซิร์ฟ: {guild.name} (ID: {guild.id})")
+    if not change_status_bot2.is_running():
+        change_status_bot2.start()
+        print(f"✅ [BOT2] เริ่ม Status Rotation")
+        print(f"⏰ [BOT2] Time-Based Status: {get_time_based_status()}\n")
 
 
 @bot2.event
 async def on_error(event, *_args, **_kwargs):
-    """จัดการ error ทั่วไป"""
     print(f"❌ [BOT2] Error in {event}:")
     import traceback
     traceback.print_exc()
 
 
-# =========================
-# STATUS LOOP (BOT 1 ONLY)
-# =========================
 @tasks.loop(seconds=10)
 async def change_status():
-    """
-    เปลี่ยน activity ทุก 10 วินาที พร้อมกับปรับสถานะตามเวลา
-
-    Status ตามเวลา:
-    - 06:00-11:59 → Online (เขียว)
-    - 12:00-18:59 → Idle (เหลือง)
-    - 19:00-05:59 → DND (แดง)
-    """
-    global current_status
-
-    # อัปเดตจำนวนเซิร์ฟเวอร์ในสถานะที่ 5
-    status_list[5] = (f"💫 อยู่ใน {len(bot.guilds)} เซิร์ฟเวอร์", discord.ActivityType.watching)
-
-    # ดึง activity ปัจจุบัน
-    status_text, activity_type = status_list[current_status]
-
-    # ดึงสถานะตามเวลา
-    time_status = get_time_based_status()
-
-    # อัปเดตสถานะ
+    text, activity_type = bot.status_activities[bot.status_index]
     await bot.change_presence(
-        activity=discord.Activity(
-            type=activity_type,
-            name=status_text
-        ),
-        status=time_status
+        activity=discord.Activity(type=activity_type, name=text),
+        status=get_time_based_status()
     )
-
-    # หมุนเวียน activity
-    current_status = (current_status + 1) % len(status_list)
+    bot.status_index = (bot.status_index + 1) % len(bot.status_activities)
 
 
 @change_status.before_loop
 async def before_change_status():
-    """รอให้บอทพร้อมก่อนเริ่ม loop"""
     await bot.wait_until_ready()
 
 
-# =========================
-# OWNER COMMANDS (BOT 1 ONLY)
-# =========================
+@tasks.loop(seconds=10)
+async def change_status_bot2():
+    text, activity_type = bot2.status_activities[bot2.status_index]
+    await bot2.change_presence(
+        activity=discord.Activity(type=activity_type, name=text),
+        status=get_time_based_status()
+    )
+    bot2.status_index = (bot2.status_index + 1) % len(bot2.status_activities)
+
+
+@change_status_bot2.before_loop
+async def before_change_status_bot2():
+    await bot2.wait_until_ready()
+
+
 @bot.command(name="reload", hidden=True)
 @commands.is_owner()
 async def reload_cog(ctx, cog_name: str):
-    """โหลด cog ใหม่ (เฉพาะ owner)"""
     try:
         await bot.reload_extension(f"cogs.{cog_name}")
         await ctx.send(f"✅ โหลด `{cog_name}` ใหม่สำเร็จ")
@@ -332,7 +229,6 @@ async def reload_cog(ctx, cog_name: str):
 @bot.command(name="load", hidden=True)
 @commands.is_owner()
 async def load_cog(ctx, cog_name: str):
-    """โหลด cog (เฉพาะ owner)"""
     try:
         await bot.load_extension(f"cogs.{cog_name}")
         await ctx.send(f"✅ โหลด `{cog_name}` สำเร็จ")
@@ -343,7 +239,6 @@ async def load_cog(ctx, cog_name: str):
 @bot.command(name="unload", hidden=True)
 @commands.is_owner()
 async def unload_cog(ctx, cog_name: str):
-    """ยกเลิกโหลด cog (เฉพาะ owner)"""
     try:
         await bot.unload_extension(f"cogs.{cog_name}")
         await ctx.send(f"✅ ยกเลิกโหลด `{cog_name}` สำเร็จ")
@@ -354,7 +249,6 @@ async def unload_cog(ctx, cog_name: str):
 @bot.command(name="sync", hidden=True)
 @commands.is_owner()
 async def sync_commands(ctx):
-    """ซิงค์ slash commands ใหม่ (เฉพาะ owner)"""
     try:
         synced = await bot.tree.sync()
         await ctx.send(f"✅ ซิงค์สำเร็จ ({len(synced)} คำสั่ง)")
@@ -365,29 +259,25 @@ async def sync_commands(ctx):
 @bot.command(name="shutdown", aliases=["stop"], hidden=True)
 @commands.is_owner()
 async def shutdown(ctx):
-    """ปิดบอท (เฉพาะ owner)"""
     await ctx.send("👋 กำลังปิดบอททั้งสอง...")
     await bot.close()
-    await bot2.close()
+    if TOKEN_2:
+        await bot2.close()
 
 
 @bot.command(name="ping")
 async def ping(ctx):
-    """เช็ค latency ของบอท"""
     latency = round(bot.latency * 1000)
-
     embed = discord.Embed(
         title="🏓 Pong!",
         description=f"**Latency:** `{latency}ms`",
         color=discord.Color.green() if latency < 100 else discord.Color.orange()
     )
-
     await ctx.send(embed=embed)
 
 
 @bot.command(name="stats", aliases=["info", "botinfo"])
 async def stats(ctx):
-    """แสดงสถิติของบอท"""
     uptime = datetime.now(timezone.utc) - bot.start_time
     hours, remainder = divmod(int(uptime.total_seconds()), 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -400,11 +290,7 @@ async def stats(ctx):
 
     embed.add_field(
         name="📈 สถิติ",
-        value=(
-            f"**เซิร์ฟเวอร์:** {len(bot.guilds):,}\n"
-            f"**สมาชิก:** {sum(g.member_count for g in bot.guilds):,}\n"
-            f"**Ping:** {round(bot.latency * 1000)}ms"
-        ),
+        value=f"**Ping:** {round(bot.latency * 1000)}ms",
         inline=True
     )
 
@@ -424,14 +310,10 @@ async def stats(ctx):
         inline=False
     )
 
-    # แสดงสถานะปัจจุบัน
     current_time = datetime.now().strftime("%H:%M")
     embed.add_field(
         name="🕒 สถานะปัจจุบัน",
-        value=(
-            f"**เวลา:** {current_time}\n"
-            f"**Status:** {get_time_based_status()}"
-        ),
+        value=f"**เวลา:** {current_time}\n**Status:** {get_time_based_status()}",
         inline=False
     )
 
@@ -441,50 +323,34 @@ async def stats(ctx):
     await ctx.send(embed=embed)
 
 
-# =========================
-# MAIN ASYNC RUNNER
-# =========================
 async def run_bots():
-    """รันบอททั้งสองพร้อมกัน"""
-
     async def start_bot1():
-        """เริ่มบอท 1"""
         try:
             await bot.start(TOKEN)
         except discord.LoginFailure:
             print("\n❌ [BOT1] TOKEN ไม่ถูกต้อง!")
-            print("💡 ตรวจสอบ TOKEN ใน Developer Portal")
         except Exception as error:
             print(f"\n❌ [BOT1] เกิดข้อผิดพลาด: {error}")
             import traceback
             traceback.print_exc()
 
     async def start_bot2():
-        """เริ่มบอท 2"""
-        try:
-            if TOKEN_2 == "YOUR_SECOND_BOT_TOKEN_HERE":
-                print("\n⚠️  [BOT2] ไม่พบ TOKEN_2 - ข้าม Bot 2")
-                return
+        if not TOKEN_2:
+            print("\n⚠️  [BOT2] ไม่พบ DISCORD_TOKEN_2 - ข้าม Bot 2")
+            return
 
+        try:
             await bot2.start(TOKEN_2)
         except discord.LoginFailure:
             print("\n❌ [BOT2] TOKEN ไม่ถูกต้อง!")
-            print("💡 ตรวจสอบ DISCORD_TOKEN_2 ใน environment variable")
         except Exception as error:
             print(f"\n❌ [BOT2] เกิดข้อผิดพลาด: {error}")
             import traceback
             traceback.print_exc()
 
-    # รันทั้งสองบอทพร้อมกัน
-    await asyncio.gather(
-        start_bot1(),
-        start_bot2()
-    )
+    await asyncio.gather(start_bot1(), start_bot2())
 
 
-# =========================
-# RUN BOT
-# =========================
 if __name__ == "__main__":
     try:
         print("🚀 กำลังเริ่มบอททั้งสอง...\n")
